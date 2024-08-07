@@ -74,6 +74,7 @@ class SAPManipulation():
                 connection = application.OpenConnection(self.__ambiente, True) # type: ignore
                 self.__session = connection.Children(0)# type: ignore
                 
+                _print(f"Executando o SAP em {self.__ambiente}")
                 
                 self.session.findById("wnd[0]/usr/txtRSYST-BNAME").text = self.__user # Usuario
                 self.session.findById("wnd[0]/usr/pwdRSYST-BCODE").text = self.__password # Senha
@@ -115,6 +116,7 @@ class SAPManipulation():
                 self.session.findById('wnd[1]/usr/btnSPOP-OPTION1').press()
             except:
                 self.session.findById('wnd[2]/usr/btnSPOP-OPTION1').press()
+            del self.__session
         except Exception as error:
             if not "(-2147417848, 'O objeto chamado foi desconectado de seus clientes.', None, None)" in str(error):
                 _print(f"não foi possivel fechar o SAP {type(error)} | {error}")

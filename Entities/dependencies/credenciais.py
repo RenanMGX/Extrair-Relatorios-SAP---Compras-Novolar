@@ -7,7 +7,7 @@ from getpass import getuser
 from typing import Literal, Dict
 
 class Credential:
-    def __init__(self, name_file:Literal["SAP_PRD", "SAP_QAS", "SAP_QAS-Renan"], path:str=f"C:\\Users\\{getuser()}\\PATRIMAR ENGENHARIA S A\\RPA - Documentos\\RPA - Dados\\CRD\\.patrimar_rpa\\credenciais\\") -> None:
+    def __init__(self, name_file:Literal["SAP_PRD", "SAP_QAS"], path:str=f"C:\\Users\\{getuser()}\\PATRIMAR ENGENHARIA S A\\RPA - Documentos\\RPA - Dados\\CRD\\.patrimar_rpa\\credenciais\\") -> None:
         name:str = str(name_file)
         if not isinstance(path, str):
             raise TypeError("apenas strings")
@@ -116,7 +116,7 @@ class Credential:
         return self.criar_cifra(text, -key)
         
 if __name__ == "__main__":
-    crd = Credential('SAP_QAS-Renan')
+    crd = Credential('SAP_PRD')
     
     
     print(crd.load())

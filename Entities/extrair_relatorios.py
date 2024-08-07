@@ -13,6 +13,9 @@ from typing import List, Dict
 from dependencies.logs import Logs
 from dependencies.functions import Functions, _print
 import traceback
+import pyperclip
+import locale
+locale.setlocale(locale.LC_ALL, "Portuguese_Brazil.1252")
 
 class ExtrairRelatorio(SAPManipulation):
     @property
@@ -23,12 +26,25 @@ class ExtrairRelatorio(SAPManipulation):
     def download_path_zmm019(self) -> str:
         return os.path.join(os.getcwd(), r'downloads\zmm019')
     
-    def __init__(self, choicer:Literal['SAP_PRD', 'SAP_QAS', 'SAP_QAS-Renan']) -> None:
+    @property
+    def file_name_zmm019_compras(self) -> str:
+        agora = self.__date
+        nome = f"{agora.strftime('%Y')}\\{agora.strftime('%m - %B').title()}\\Relatorio_Vol.Compras {agora.strftime('%m')} ({agora.strftime('%d')}{agora.strftime('%B').title()}{agora.strftime('%Y')}).xlsx"
+        return nome
+    
+    @property
+    def file_name_zmm030_contratos(self) -> str:
+        agora = self.__date
+        nome = f"{agora.strftime('%Y')}\\{agora.strftime('%m - %B').title()}\\Relatorio_Contratos {agora.strftime('%m')} ({agora.strftime('%d')}{agora.strftime('%B').title()}{agora.strftime('%Y')}).xlsx"
+        return nome
+    
+    def __init__(self, *, choicer:Literal['SAP_PRD', 'SAP_QAS'], date:datetime=datetime.now()) -> None:
         crd:dict = Credential(choicer).load() #type: ignore
         super().__init__(user=crd['user'], password=crd['password'], ambiente=crd['ambiente'])
+        self.__date: datetime = date
     
     @SAPManipulation.start_SAP
-    def extrair_rel_zmm030(self, empreendimento:list|str, *, fechar_sap_no_final):
+    def extrair_rel_zmm030(self, empreendimento:list|str, *, fechar_sap_no_final:bool=False):
         _print(f"Iniciando extração das planilhas da transação ZMM030")
         download_path:str = self.download_path_zmm030
         if not os.path.exists(download_path):
@@ -58,8 +74,8 @@ class ExtrairRelatorio(SAPManipulation):
                 if not self.__zmm030(centro=emp, download_path=download_path):
                     _print(f"error ao gerar relatorio do zmm030 '{emp}' vide log")
     
-    @SAPManipulation.start_SAP           
-    def extrair_rel_zmm019(self, *,fechar_sap_no_final):
+    #@SAPManipulation.start_SAP           
+    def extrair_rel_zmm019(self, *,fechar_sap_no_final=False,   data_atual:datetime=datetime.now(), empreendimentos:list=[], data_inicial:str = "01/01/2023"):
         _print(f"Iniciando extração das planilhas da transação ZMM019")
         download_path:str = self.download_path_zmm019
         if not os.path.exists(download_path):
@@ -81,9 +97,9 @@ class ExtrairRelatorio(SAPManipulation):
                 except FileExistsError:
                     pyautogui.sleep(.5)
         
-        data_inicial:str = "01/01/2023"
+        
         padrao_str:str = '%d.%m.%Y'
-        for value in self.obter_datas(data_inicial):
+        for value in self.obter_datas(data_inicial, agora=data_atual):
             inicio = value['inicio'].strftime(padrao_str)
             fim = value['fim'].strftime(padrao_str)
             
@@ -91,9 +107,12 @@ class ExtrairRelatorio(SAPManipulation):
                 data_inicial=inicio,
                 data_final=fim,
                 download_path=download_path,
+                empreendimentos=empreendimentos,
+                fechar_sap_no_final=False,
                 file_name=f"de_{inicio}-ate_{fim}.xlsx"
             ):
                 _print(f"error ao gerar relatorio do zmm019 'de_{inicio}-ate_{fim}' vide log")
+            #pyautogui.sleep(60)
         
         
     
@@ -134,6 +153,8 @@ class ExtrairRelatorio(SAPManipulation):
         data_final:str,
         download_path:str,
         file_name:str,
+        empreendimentos:list|str=[],
+        fechar_sap_no_final=False,
         variante:str = "VOL. COMPRAS",        
         ) -> bool:
         
@@ -157,6 +178,16 @@ class ExtrairRelatorio(SAPManipulation):
             self.session.findById("wnd[0]/usr/ctxtSO_AEDAT-LOW").text = data_inicial
             self.session.findById("wnd[0]/usr/ctxtSO_AEDAT-HIGH").text = data_final
             self.session.findById("wnd[0]/usr/ctxtSO_AEDAT-HIGH").caretPosition = 10
+            
+            # self.session.findById("wnd[0]/usr/btn%_SO_WERKS_%_APP_%-VALU_PUSH").press()
+            
+            # texto_para_copiar = '\r\n'.join(empreendimentos)
+            # pyperclip.copy(texto_para_copiar)
+            # self.session.findById("wnd[1]/tbar[0]/btn[24]").press()
+            
+            # self.session.findById("wnd[1]/tbar[0]/btn[8]").press()  
+            # self.session.findById("wnd[0]/usr/txtP_TOTAL").text = "999999999"
+
             self.session.findById("wnd[0]/tbar[1]/btn[8]").press()
             self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").setCurrentCell(3,"ERNAM")
             self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").selectedRows = "3"
@@ -169,7 +200,6 @@ class ExtrairRelatorio(SAPManipulation):
             self.session.findById("wnd[1]/tbar[0]/btn[0]").press()
             
             Functions.fechar_excel(os.path.join(download_path, file_name), wait=3)
-            
             return True    
         except Exception as error:
             Logs(name=f"{self.__class__.__name__}.__zmm019").register(status='Error', description=f"error ao gerar relatorio do zmm019 'de_{data_inicial}-ate_{data_final}' vide log", exception=traceback.format_exc())
@@ -179,8 +209,11 @@ class ExtrairRelatorio(SAPManipulation):
         try:
             janela_sap:Win32Window = pygetwindow.getWindowsWithTitle('Relatório de Valores de Contratos')[0]
             if not janela_sap.isActive:
-                janela_sap.minimize()
-                janela_sap.restore()
+                try:
+                    janela_sap.activate()
+                except:
+                    janela_sap.minimize()
+                    janela_sap.restore()
             janela_sap.resizeTo(900,600)
             janela_sap.moveTo(0,0)
             janela_sap.moveRel(600,100)         
@@ -196,8 +229,12 @@ class ExtrairRelatorio(SAPManipulation):
             pyautogui.sleep(2)
             janela_download:Win32Window = pygetwindow.getWindowsWithTitle('Procurar Arquivos ou Pastas')[0]
             if not janela_download.isActive:
-                janela_download.minimize()
-                janela_download.restore()
+                try:
+                    janela_download.activate()
+                except:
+                    janela_download.minimize()
+                    janela_download.restore()
+                    
             janela_download.resizeTo(400,400)
             janela_download.moveTo(0,0)
             janela_download.moveRel(600,100)
@@ -225,6 +262,15 @@ class ExtrairRelatorio(SAPManipulation):
             return False 
        
     def obter_datas(self, inicial_date:datetime|str, *, agora:datetime=datetime.now(), mes_atual:bool=True) -> List[Dict[str,datetime]]:
+        """
+        Retorna uma lista de dicionários com as datas de início e fim de cada mês, incluindo o mês atual se especificado.
+
+        Args:
+            incluir_mes_atual (bool): Se True, inclui o mês atual na lista. Padrão é True.
+
+        Returns:
+            list: Lista de dicionários com as datas de início e fim de cada mês.
+        """        
         result:List[Dict[str,datetime]] = []
         
         inicial:datetime
@@ -246,8 +292,21 @@ class ExtrairRelatorio(SAPManipulation):
 
         return result
     
+    @SAPManipulation.start_SAP
+    def finalizar(self, *, fechar_sap_no_final:Literal[True]):
+        _print("Finalizando SAP")
+    
     def __segurar_ponteiro(self, target:pyautogui.pyscreeze.Box, *, tempo_espera:int=1.5, timeout:int=2*60) -> None: #type: ignore
+        """
+        Mantém o ponteiro do mouse em uma posição específica por um determinado tempo.
+
+        Args:
+            x (int): A coordenada x da posição desejada.
+            y (int): A coordenada y da posição desejada.
+            duration (int): O tempo em segundos durante o qual o ponteiro deve permanecer na posição.
+        """
         pyautogui.moveTo(target)
+
         lock = pyautogui.position()
         tempo_ultima_vez_que_moveu = datetime.now()
         pyautogui.FAILSAFE = True
@@ -257,6 +316,7 @@ class ExtrairRelatorio(SAPManipulation):
             
             if regra:
                 if datetime.now() >= (tempo_ultima_vez_que_moveu + relativedelta(seconds=tempo_espera)):
+                    pyautogui.moveTo(target)
                     pyautogui.FAILSAFE = False
                     return
                 #else:
@@ -268,13 +328,28 @@ class ExtrairRelatorio(SAPManipulation):
             pyautogui.sleep(.1)
                     
     def __procurar_imagem(self, image_path:str, *, confidence:float=1, timeout:int=2*60) -> pyautogui.pyscreeze.Box: #type: ignore
-        if (confidence < 0) and (confidence > 1):
+        """
+        Tenta localizar uma imagem na tela dentro de um tempo limite especificado.
+
+        Args:
+            image_path (str): O caminho para a imagem a ser localizada.
+            confidence (float, opcional): O nível de confiança para a correspondência da imagem. Deve estar entre 0 e 1. Padrão é 1.
+            timeout (int, opcional): O tempo limite em segundos para tentar localizar a imagem. Padrão é 120 segundos.
+
+        Raises:
+            ValueError: Se o valor de confidence estiver fora do intervalo [0, 1].
+
+        Returns:
+            pyautogui.pyscreeze.Box: As coordenadas da caixa delimitadora da imagem localizada.
+        """        
+        # Verifica se o valor de confidence está fora do intervalo [0, 1]
+        if (confidence < 0) or (confidence > 1):
             raise ValueError("valor do confidence incorreto apenas valores entre '0' e '1'")
         for _ in range(timeout*2):
             try:
                 return pyautogui.locateOnScreen(os.path.join(os.getcwd(), image_path), confidence=confidence)
             except:
-                pyautogui.sleep(0.5)            
+                pyautogui.sleep(0.5)           
        
     
 if __name__ == "__main__":

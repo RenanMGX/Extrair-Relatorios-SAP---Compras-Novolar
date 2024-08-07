@@ -4,6 +4,7 @@ import xlwings as xw
 from xlwings.main import Sheet #for typing
 from dependencies.functions import Functions, _print
 import shutil
+from typing import List
 
 class PathNotFound(Exception):
     def __init__(self, *args: object) -> None:
@@ -23,12 +24,25 @@ class FilesJoined:
         else:
             raise FileNotFoundError("Arquivo não encontrado!")
         
-    def copyTo(self,destiny:str):
-        if not os.path.exists(os.path.dirname(destiny)):
-            os.makedirs(os.path.dirname(destiny))
-            
-        shutil.copy2(self.file_path, destiny)
-        _print(f"{self.file_path} foi copiado para {destiny}")
+    def copyTo(self, destiny:str, file_name:str="") -> None:
+        if os.path.exists(destiny):
+            #os.makedirs(destiny)
+        
+            if file_name:
+                destiny = os.path.join(destiny, file_name)
+                if not os.path.exists(os.path.dirname(destiny)):
+                    os.makedirs(os.path.dirname(destiny))
+                            
+            for _ in range(2):
+                try:
+                    shutil.copy2(self.file_path, destiny)
+                    _print(f"{self.file_path} foi copiado para {destiny}")
+                    return
+                except shutil.Error:
+                    os.unlink(destiny)
+                    continue
+        else:
+            raise FileNotFoundError(f"pasta destino não foi encontrada '{destiny}'")
 
 class FilesManipulation:
     @property
@@ -36,7 +50,7 @@ class FilesManipulation:
         return self.__path_base
     
     @property
-    def files(self) -> list:
+    def files(self) -> List[str]:
         return [os.path.join(self.path_base, value) for value in os.listdir(self.path_base)]
     
     def __init__(self, path_base:str) -> None:
@@ -50,15 +64,16 @@ class FilesManipulation:
         
         df = pd.DataFrame()
         for file in self.files:
-            file = os.path.join(self.path_base, file)
-            _print(f"copiando dados do arquivo {file}")
-            apps = xw.App(visible=False)
-            with apps.books.open(file)as wb:
-                ws:Sheet = wb.sheets[0]
-                df_temp:pd.DataFrame = ws.range('A1').expand().options(pd.DataFrame, index=False).value
-                df = pd.concat([df, df_temp], ignore_index=True)
+            if (file.endswith('.xlsx')) or (file.endswith('.xls')):
+                file = os.path.join(self.path_base, file)
+                _print(f"copiando dados do arquivo {file}")
+                apps = xw.App(visible=False)
+                with apps.books.open(file)as wb:
+                    ws:Sheet = wb.sheets[0]
+                    df_temp:pd.DataFrame = ws.range('A1').expand().options(pd.DataFrame, index=False).value
+                    df = pd.concat([df, df_temp], ignore_index=True)
 
-            Functions.fechar_excel(file)
+                Functions.fechar_excel(file)
         
         path_destiny:str = os.path.join(self.path_base, "unificado")
         if not os.path.exists(path_destiny):
