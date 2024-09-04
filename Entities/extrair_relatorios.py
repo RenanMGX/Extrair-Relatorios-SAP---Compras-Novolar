@@ -27,8 +27,8 @@ class ExtrairRelatorio(SAPManipulation):
         return os.path.join(os.getcwd(), r'downloads\zmm019')
     
     @property
-    def download_path_me5a(self) -> str:
-        return os.path.join(os.getcwd(), r'downloads\me5a')
+    def download_path_me3n(self) -> str:
+        return os.path.join(os.getcwd(), r'downloads\me3n')
     
     @property
     def file_name_zmm019_compras(self) -> str:
@@ -37,7 +37,7 @@ class ExtrairRelatorio(SAPManipulation):
         return nome
     
     @property
-    def file_name_contratos(self) -> str: # me5a, zmm030
+    def file_name_contratos(self) -> str: # me3n, zmm030
         agora = self.__date
         nome = f"{agora.strftime('%Y')}\\{agora.strftime('%m%B').upper()}\\Relatorio_Contratos {agora.strftime('%m')} ({agora.strftime('%d')}{agora.strftime('%B').title()}{agora.strftime('%Y')}).xlsx"
         return nome
@@ -82,17 +82,17 @@ class ExtrairRelatorio(SAPManipulation):
                     _print(f"error ao gerar relatorio do zmm030 '{emp}' vide log")
 
     @SAPManipulation.start_SAP
-    def extrair_rel_me5a(self, empreendimento:list|str, *, fechar_sap_no_final:bool=False):
-        _print(f"Iniciando extração das planilhas da transação ME5A")
-        download_path:str = self.__preparar_download_path(self.download_path_me5a)
+    def extrair_rel_me3n(self, empreendimento:list|str, *, fechar_sap_no_final:bool=False):
+        _print(f"Iniciando extração das planilhas da transação me3n")
+        download_path:str = self.__preparar_download_path(self.download_path_me3n)
         
         if isinstance(empreendimento, str):
-            if not self.__me5a(centro=empreendimento, download_path=download_path):
-                _print(f"error ao gerar relatorio do me5a '{empreendimento}' vide log")
+            if not self.__me3n(centro=empreendimento, download_path=download_path):
+                _print(f"error ao gerar relatorio do me3n '{empreendimento}' vide log")
         elif isinstance(empreendimento, list):
             for emp in empreendimento:
-                if not self.__me5a(centro=emp, download_path=download_path):
-                    _print(f"error ao gerar relatorio do me5a '{emp}' vide log")
+                if not self.__me3n(centro=emp, download_path=download_path):
+                    _print(f"error ao gerar relatorio do me3n '{emp}' vide log")
 
     
     #@SAPManipulation.start_SAP           
@@ -150,14 +150,22 @@ class ExtrairRelatorio(SAPManipulation):
         return True
     
     @SAPManipulation.start_SAP
-    def __me5a(self, *, centro:str, download_path:str) -> bool:
-        _print(f"Iniciando extração do relatorio {centro.upper()} da tranzação me5a")
-        file_name = f"me5a_{centro}.xlsx"
+    def __me3n(self, *, centro:str, download_path:str) -> bool:
+        _print(f"Iniciando extração do relatorio {centro.upper()} da tranzação me3n")
+        file_name = f"me3n_{centro}.xlsx"
         
         try:
-            self.session.findById("wnd[0]/tbar[0]/okcd").text = "/n me5a"
+            self.session.findById("wnd[0]/tbar[0]/okcd").text = "/n me3n"
             self.session.findById("wnd[0]").sendVKey(0)
-            self.session.findById("wnd[0]/usr/ctxtS_WERKS-LOW").text = "E038"
+
+            # self.session.findById("wnd[0]/usr/btn%_S_WERKS_%_APP_%-VALU_PUSH").press()
+            # self.session.findById("wnd[1]/tbar[0]/btn[16]").press()
+            # self.session.findById("wnd[1]/tbar[0]/btn[8]").press()
+            #self.session.findById("wnd[0]/usr/btn%_S_BSART_%_APP_%-VALU_PUSH").press()
+            #self.session.findById("wnd[1]/tbar[0]/btn[16]").press()
+            #self.session.findById("wnd[1]/tbar[0]/btn[8]").press()
+            
+            self.session.findById("wnd[0]/usr/ctxtS_WERKS-LOW").text = centro
             self.session.findById("wnd[0]/usr/ctxtS_WERKS-LOW").setFocus()
             self.session.findById("wnd[0]/tbar[1]/btn[8]").press()
             self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").setCurrentCell(2,"TXZ01")
@@ -174,7 +182,7 @@ class ExtrairRelatorio(SAPManipulation):
 
 
         except:
-            Logs(name=f"{self.__class__.__name__}").register(status='Error', description=f"error ao gerar relatorio do me5a '{centro.upper()}' vide log", exception=traceback.format_exc())
+            Logs(name=f"{self.__class__.__name__}").register(status='Error', description=f"error ao gerar relatorio do me3n '{centro.upper()}' vide log", exception=traceback.format_exc())
             return False
         
     

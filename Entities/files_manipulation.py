@@ -4,7 +4,10 @@ import xlwings as xw
 from xlwings.main import Sheet #for typing
 from dependencies.functions import Functions, _print
 import shutil
-from typing import List
+from typing import List,Dict
+from .dependencies.logs import Logs
+import traceback
+import zipfile
 
 class PathNotFound(Exception):
     def __init__(self, *args: object) -> None:
@@ -64,6 +67,8 @@ class FilesManipulation:
         
         df = pd.DataFrame()
         for file in self.files:
+            if os.path.basename(file).startswith('~$'):
+                continue
             if (file.endswith('.xlsx')) or (file.endswith('.xls')):
                 file = os.path.join(self.path_base, file)
                 _print(f"copiando dados do arquivo {file}")
@@ -83,6 +88,82 @@ class FilesManipulation:
         _print(f"unificação realizada salvando no caminho {file_path}")
         df.to_excel(file_path, index=False)
         return FilesJoined(file_path)
+    
+    def tratar_arquivos_me3n(self):
+        download_path:str = self.__path_base
+        if not os.path.exists(download_path):
+            raise FileNotFoundError(f"Arquivo '{download_path}' não existe!")
+        
+        def separar_documentos(df:pd.DataFrame) -> pd.DataFrame:
+            documentos: Dict[str, List[pd.Series]] = {}
+            ultimo_documento = ""
+            for row, value in df.iterrows():
+                if value['Item'] == value['Item']:
+                    if "Documento de compras" in value['Item']:
+                        ultimo_documento = value['Item']
+                        documentos[value['Item']] = []
+                    else:
+                        documentos[ultimo_documento].append(value)
+            return tratar_documentos(documentos)
+        
+        def tratar_documentos(documents:Dict[str, List[pd.Series]]) -> pd.DataFrame:
+            result:list = []
+            for key, values in documents.items():
+                values:List[pd.Series]
+                
+                result.append(
+                    {
+                        "Item":key,
+                        "Tipo doc.compras": values[0]['Tipo doc.compras'],
+                        "Ctg.doc.compras": values[0]['Ctg.doc.compras'],
+                        "Grupo de compradores": values[0]['Grupo de compradores'],
+                        "Data do documento" : values[0]['Data do documento'],
+                        "Fornecedor/centro fornecedor": values[0]['Fornecedor/centro fornecedor'],
+                        "Material": values[0]['Material'],
+                        "Texto breve": values[0]['Texto breve'],
+                        "Início per.validade": values[0]['Início per.validade'],
+                        "Fim da validade": values[0]['Fim da validade'],
+                        "Grupo de mercadorias": values[0]['Grupo de mercadorias'],
+                        "Ctg.class.cont.": values[0]['Ctg.class.cont.'],
+                        "Centro": values[0]['Centro'],
+                        "Qtd.do pedido": sum([float(valor['Qtd.do pedido']) for valor in values]),
+                        "UM pedido": values[0]['UM pedido'],
+                        "Qtd.na UnidGestEstoq": sum([float(valor['Qtd.na UnidGestEstoq']) for valor in values]),
+                        "Preço líquido": sum([float(valor['Preço líquido']) for valor in values]),
+                        "Quantidade prevista": sum([float(valor['Quantidade prevista']) for valor in values]),
+                        "Qtd.prev.pendente": sum([float(valor['Qtd.prev.pendente']) for valor in values]),
+                        "Valor pendente": sum([float(valor['Valor pendente']) for valor in values]),
+                    }
+                )
+            
+            df = pd.DataFrame(result)
+            return df            
+                 
+        for file in os.listdir(download_path):
+            file = os.path.join(download_path, file)
+            
+            if os.path.isfile(file):
+                try:
+                    if file.endswith('.xlsx'):
+                        df:pd.DataFrame = pd.read_excel(file, dtype=str, engine='openpyxl')
+                        df['Data do documento'] = pd.to_datetime(df['Data do documento'], format='%Y-%m-%d %H:%M:%S')
+                        df['Início per.validade'] = pd.to_datetime(df['Início per.validade'], format='%Y-%m-%d %H:%M:%S')
+                        df['Fim da validade'] = pd.to_datetime(df['Fim da validade'], format='%Y-%m-%d %H:%M:%S')
+                        
+                        df = separar_documentos(df)
+                        
+                        df.to_excel(file, index=False)
+                
+                except zipfile.BadZipFile:
+                    continue                
+                except Exception:
+                    Logs(name=str(self.__class__.__name__)).register(status='Error', description='erro ao tratar arquivos me3n', exception=traceback.format_exc())
+        
+        return self          
+                    
+                    
+                    
+                    
 
 
 if __name__ == "__main__":

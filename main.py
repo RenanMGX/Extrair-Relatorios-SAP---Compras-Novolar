@@ -36,24 +36,37 @@ class Execute:
     def start(self) -> None:
         agora = datetime.now()
         self.start_zmm019()        
-        
-        # try:
-        #     self.__extrair_relat.extrair_rel_me5a(self.__lista_obras)
-        #     FilesManipulation(self.__extrair_relat.download_path_me5a).unify().copyTo(self.path_destiny_contratos, file_name=self.__extrair_relat.file_name_contratos)
-        # except Exception as error:
-        #     _print(f"Erro: {error}")
-        #     self.__log.register(status='Error', description="Erro ao executar me5a")
+        self.start_me3n()    
         
         self.__extrair_relat.finalizar(fechar_sap_no_final=True)
         self.__log.register(status='Report', description=f"tempo de execução do scrip '{datetime.now() - agora}'")
+    
+    def start_me3n(self, *, finalizar:bool=False):
+        agora = datetime.now()
         
-    def start_zmm019(self):
+        try:
+            self.__extrair_relat.extrair_rel_me3n(self.__lista_obras)
+            FilesManipulation(self.__extrair_relat.download_path_me3n).tratar_arquivos_me3n().unify().copyTo(self.path_destiny_contratos, file_name=self.__extrair_relat.file_name_contratos)
+        except Exception as error:
+            _print(f"Erro: {error}")
+            self.__log.register(status='Error', description="Erro ao executar me3n")
+        
+        if finalizar:
+            self.__extrair_relat.finalizar(fechar_sap_no_final=True)
+            self.__log.register(status='Report', description=f"tempo de execução do scrip '{datetime.now() - agora}'")
+        
+    def start_zmm019(self, *, finalizar:bool=False):
+        agora = datetime.now()
         try:
             self.__extrair_relat.extrair_rel_zmm019(empreendimentos=self.__lista_obras)
             FilesManipulation(self.__extrair_relat.download_path_zmm019).unify().copyTo(self.path_destiny_zmm019_compras, file_name=self.__extrair_relat.file_name_zmm019_compras)
         except Exception as error:
             _print(f"Erro: {error}")
             self.__log.register(status='Error', description="erro ao executar zmm019")
+            
+        if finalizar:
+            self.__extrair_relat.finalizar(fechar_sap_no_final=True)
+            self.__log.register(status='Report', description=f"tempo de execução do scrip '{datetime.now() - agora}'")
         
 if __name__ == "__main__":
     argv:list = sys.argv
@@ -68,11 +81,13 @@ if __name__ == "__main__":
         if argv[1] == "start":
             Execute().start()
         elif argv[1] == "zmm019":
-            Execute().start_zmm019()
+            Execute().start_zmm019(finalizar=True)
+        elif argv[1] == "me3n":
+            Execute().start_me3n(finalizar=True)            
         else:
             _print(f"Argumento invalido: '{argv[1]}'")
     else:
         _print("obrigatorio uso de argumento")
-        _print("[start, zmm019]")
+        _print("[start, zmm019, me3n]")
         
         
