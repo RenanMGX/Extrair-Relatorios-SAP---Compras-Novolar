@@ -27,26 +27,27 @@ class ExtrairRelatorio(SAPManipulation):
         return os.path.join(os.getcwd(), r'downloads\zmm019')
     
     @property
+    def download_path_me5a(self) -> str:
+        return os.path.join(os.getcwd(), r'downloads\me5a')
+    
+    @property
     def file_name_zmm019_compras(self) -> str:
         agora = self.__date
-        nome = f"{agora.strftime('%Y')}\\{agora.strftime('%m - %B').title()}\\Relatorio_Vol.Compras {agora.strftime('%m')} ({agora.strftime('%d')}{agora.strftime('%B').title()}{agora.strftime('%Y')}).xlsx"
+        nome = f"{agora.strftime('%Y')}\\{agora.strftime('%m%B').upper()}\\Relatorio_Vol.Compras {agora.strftime('%m')} ({agora.strftime('%d')}{agora.strftime('%B').title()}{agora.strftime('%Y')}).xlsx"
         return nome
     
     @property
-    def file_name_zmm030_contratos(self) -> str:
+    def file_name_contratos(self) -> str: # me5a, zmm030
         agora = self.__date
-        nome = f"{agora.strftime('%Y')}\\{agora.strftime('%m - %B').title()}\\Relatorio_Contratos {agora.strftime('%m')} ({agora.strftime('%d')}{agora.strftime('%B').title()}{agora.strftime('%Y')}).xlsx"
+        nome = f"{agora.strftime('%Y')}\\{agora.strftime('%m%B').upper()}\\Relatorio_Contratos {agora.strftime('%m')} ({agora.strftime('%d')}{agora.strftime('%B').title()}{agora.strftime('%Y')}).xlsx"
         return nome
     
     def __init__(self, *, choicer:Literal['SAP_PRD', 'SAP_QAS'], date:datetime=datetime.now()) -> None:
         crd:dict = Credential(choicer).load() #type: ignore
         super().__init__(user=crd['user'], password=crd['password'], ambiente=crd['ambiente'])
         self.__date: datetime = date
-    
-    @SAPManipulation.start_SAP
-    def extrair_rel_zmm030(self, empreendimento:list|str, *, fechar_sap_no_final:bool=False):
-        _print(f"Iniciando extração das planilhas da transação ZMM030")
-        download_path:str = self.download_path_zmm030
+        
+    def __preparar_download_path(self, download_path) -> str:
         if not os.path.exists(download_path):
             os.makedirs(download_path)
         else:
@@ -65,7 +66,13 @@ class ExtrairRelatorio(SAPManipulation):
                     break
                 except FileExistsError:
                     pyautogui.sleep(.5)
-        
+        return download_path
+    
+    @SAPManipulation.start_SAP
+    def extrair_rel_zmm030(self, empreendimento:list|str, *, fechar_sap_no_final:bool=False):
+        _print(f"Iniciando extração das planilhas da transação ZMM030")
+        download_path:str = self.__preparar_download_path(self.download_path_zmm030)
+
         if isinstance(empreendimento, str):
             if not self.__zmm030(centro=empreendimento, download_path=download_path):
                 _print(f"error ao gerar relatorio do zmm030 '{empreendimento}' vide log")
@@ -73,30 +80,26 @@ class ExtrairRelatorio(SAPManipulation):
             for emp in empreendimento:
                 if not self.__zmm030(centro=emp, download_path=download_path):
                     _print(f"error ao gerar relatorio do zmm030 '{emp}' vide log")
+
+    @SAPManipulation.start_SAP
+    def extrair_rel_me5a(self, empreendimento:list|str, *, fechar_sap_no_final:bool=False):
+        _print(f"Iniciando extração das planilhas da transação ME5A")
+        download_path:str = self.__preparar_download_path(self.download_path_me5a)
+        
+        if isinstance(empreendimento, str):
+            if not self.__me5a(centro=empreendimento, download_path=download_path):
+                _print(f"error ao gerar relatorio do me5a '{empreendimento}' vide log")
+        elif isinstance(empreendimento, list):
+            for emp in empreendimento:
+                if not self.__me5a(centro=emp, download_path=download_path):
+                    _print(f"error ao gerar relatorio do me5a '{emp}' vide log")
+
     
     #@SAPManipulation.start_SAP           
     def extrair_rel_zmm019(self, *,fechar_sap_no_final=False,   data_atual:datetime=datetime.now(), empreendimentos:list=[], data_inicial:str = "01/01/2023"):
         _print(f"Iniciando extração das planilhas da transação ZMM019")
-        download_path:str = self.download_path_zmm019
-        if not os.path.exists(download_path):
-            os.makedirs(download_path)
-        else:
-            for _ in range(60):
-                try:
-                    shutil.rmtree(download_path)
-                    break
-                except PermissionError as error:
-                    arquivo_aberto = re.search(r"(?<=')[\D\d]+(?=')", str(error)).group() #type: ignore
-                    Functions.fechar_excel(arquivo_aberto)
-                pyautogui.sleep(1)
-
-            for _ in range(60*2):
-                try:
-                    os.makedirs(download_path)
-                    break
-                except FileExistsError:
-                    pyautogui.sleep(.5)
-        
+        download_path:str = self.__preparar_download_path(self.download_path_zmm019)
+      
         
         padrao_str:str = '%d.%m.%Y'
         for value in self.obter_datas(data_inicial, agora=data_atual):
@@ -147,6 +150,35 @@ class ExtrairRelatorio(SAPManipulation):
         return True
     
     @SAPManipulation.start_SAP
+    def __me5a(self, *, centro:str, download_path:str) -> bool:
+        _print(f"Iniciando extração do relatorio {centro.upper()} da tranzação me5a")
+        file_name = f"me5a_{centro}.xlsx"
+        
+        try:
+            self.session.findById("wnd[0]/tbar[0]/okcd").text = "/n me5a"
+            self.session.findById("wnd[0]").sendVKey(0)
+            self.session.findById("wnd[0]/usr/ctxtS_WERKS-LOW").text = "E038"
+            self.session.findById("wnd[0]/usr/ctxtS_WERKS-LOW").setFocus()
+            self.session.findById("wnd[0]/tbar[1]/btn[8]").press()
+            self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").setCurrentCell(2,"TXZ01")
+            self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").selectedRows = "2"
+            self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").contextMenu()
+            self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").selectContextMenuItem("&XXL")
+            self.session.findById("wnd[1]/tbar[0]/btn[0]").press()
+            self.session.findById("wnd[1]/usr/ctxtDY_PATH").text = download_path
+            self.session.findById("wnd[1]/usr/ctxtDY_FILENAME").text = file_name
+            self.session.findById("wnd[1]/tbar[0]/btn[0]").press()
+            
+            Functions.fechar_excel(os.path.join(download_path, file_name), wait=3)
+            return True
+
+
+        except:
+            Logs(name=f"{self.__class__.__name__}").register(status='Error', description=f"error ao gerar relatorio do me5a '{centro.upper()}' vide log", exception=traceback.format_exc())
+            return False
+        
+    
+    @SAPManipulation.start_SAP
     def __zmm019(
         self, *,
         data_inicial:str,
@@ -187,8 +219,26 @@ class ExtrairRelatorio(SAPManipulation):
             
             # self.session.findById("wnd[1]/tbar[0]/btn[8]").press()  
             # self.session.findById("wnd[0]/usr/txtP_TOTAL").text = "999999999"
+            self.session.findById("wnd[0]/usr/ctxtP_LAYOUT").text = "NOVOLAR"
+
 
             self.session.findById("wnd[0]/tbar[1]/btn[8]").press()
+                
+            
+            
+            self.session.findById("wnd[0]/tbar[1]/btn[33]").press()
+            self.session.findById("wnd[1]/usr/subSUB_CONFIGURATION:SAPLSALV_CUL_LAYOUT_CHOOSE:0500/cntlD500_CONTAINER/shellcont/shell").setCurrentCell(0,"TEXT")
+            self.session.findById("wnd[1]/usr/subSUB_CONFIGURATION:SAPLSALV_CUL_LAYOUT_CHOOSE:0500/cntlD500_CONTAINER/shellcont/shell").selectedRows = "0"
+            self.session.findById("wnd[1]/usr/subSUB_CONFIGURATION:SAPLSALV_CUL_LAYOUT_CHOOSE:0500/cntlD500_CONTAINER/shellcont/shell").contextMenu()
+            self.session.findById("wnd[1]/usr/subSUB_CONFIGURATION:SAPLSALV_CUL_LAYOUT_CHOOSE:0500/cntlD500_CONTAINER/shellcont/shell").selectContextMenuItem("&FILTER")
+            self.session.findById("wnd[2]/usr/ssub%_SUBSCREEN_FREESEL:SAPLSSEL:1105/ctxt%%DYN001-LOW").text = "RPA - VOL DE COMPRAS"
+            self.session.findById("wnd[2]/tbar[0]/btn[0]").press()
+            self.session.findById("wnd[1]/usr/subSUB_CONFIGURATION:SAPLSALV_CUL_LAYOUT_CHOOSE:0500/cntlD500_CONTAINER/shellcont/shell").currentCellColumn = "TEXT"
+            self.session.findById("wnd[1]/usr/subSUB_CONFIGURATION:SAPLSALV_CUL_LAYOUT_CHOOSE:0500/cntlD500_CONTAINER/shellcont/shell").selectedRows = "0"
+            self.session.findById("wnd[1]/usr/subSUB_CONFIGURATION:SAPLSALV_CUL_LAYOUT_CHOOSE:0500/cntlD500_CONTAINER/shellcont/shell").clickCurrentCell()
+            
+            #import pdb; pdb.set_trace()
+                
             self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").setCurrentCell(3,"ERNAM")
             self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").selectedRows = "3"
             self.session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").contextMenu()
