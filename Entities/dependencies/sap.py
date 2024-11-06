@@ -6,6 +6,7 @@ import subprocess
 from time import sleep
 import traceback
 from typing import Literal
+from functools import wraps
 
 def _print(*args, end="\n"):
     if not end.endswith("\n"):
